@@ -1,0 +1,20 @@
+{
+  "name": "rocket-en3",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-Powered Intelligent NFT Event Infrastructure on 0G",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:scanner":  "cd scanner && npm run dev",
+    "dev:ai":       "cd ai-backend && uvicorn main:app --reload --port 8000",
+    "build:frontend": "cd frontend && npm run build",
+    "build:scanner":  "cd scanner && npm run build",
+    "install:all": "cd frontend && npm install && cd ../scanner && npm install",
+    "test:contracts": "cd contracts && forge test -vv",
+    "deploy:contracts": "cd contracts && forge script script/Deploy.s.sol:DeployRocketEN3 --rpc-url $OG_RPC_URL --broadcast -vvvv"
+  },
+  "workspaces": [
+    "frontend",
+    "scanner"
+  ]
+}

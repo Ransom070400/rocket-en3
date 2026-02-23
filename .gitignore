@@ -1,0 +1,14 @@
+node_modules/
+.env
+dist/
+out/
+cache/
+broadcast/
+venv/
+__pycache__/
+*.pyc
+saved_models/
+.foundry/
+lib/
+*.log
+.DS_Store
