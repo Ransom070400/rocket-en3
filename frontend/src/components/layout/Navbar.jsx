@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Rocket, Wallet, X, ChevronDown, LayoutDashboard, Ticket, Plus, Compass } from 'lucide-react'
+import { Rocket, LogIn, X, ChevronDown, LayoutDashboard, Ticket, Plus, Compass, LogOut, User } from 'lucide-react'
 import { useWallet } from '../../context/WalletContext'
 import { OG_CHAIN } from '../../utils/contract'
 
 export default function Navbar() {
-  const { address, connect, disconnect, connecting, isCorrectChain, switchToOG, balance, chainId } = useWallet()
+  const {
+    address, connect, disconnect, connecting,
+    isCorrectChain, switchToOG, balance,
+    authenticated, user,
+  } = useWallet()
+
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const location = useLocation()
 
   useEffect(() => {
@@ -16,9 +22,24 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    if (!profileOpen) return
+    const close = () => setProfileOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [profileOpen])
+
   const shortAddr = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : null
+
+  // Display name from social login (Web3Auth userInfo)
+  const displayName = user?.name || user?.email || shortAddr
+
+  const displayLabel = displayName
+    ? (displayName.length > 16 ? displayName.slice(0, 14) + '...' : displayName)
+    : shortAddr
 
   const navLinks = [
     { to: '/events',    label: 'Explore',    icon: <Compass size={16} /> },
@@ -64,7 +85,7 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Wallet button */}
+          {/* Auth section */}
           <div className="flex items-center gap-3">
             {/* Chain warning */}
             {address && !isCorrectChain && (
@@ -72,24 +93,55 @@ export default function Navbar() {
                 onClick={switchToOG}
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl text-xs font-semibold hover:bg-amber-100 transition-colors"
               >
-                ⚠️ Switch to 0G
+                Switch to 0G
               </button>
             )}
 
-            {address ? (
-              <div className="flex items-center gap-2">
-                <div className="hidden sm:flex flex-col items-end">
-                  <span className="text-xs text-gray-500 leading-none">{balance} OG</span>
-                  <span className="text-sm font-semibold text-gray-900 leading-none mt-0.5">{shortAddr}</span>
-                </div>
+            {authenticated && address ? (
+              <div className="relative">
                 <button
-                  onClick={disconnect}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-sm font-medium transition-all duration-200"
+                  onClick={(e) => { e.stopPropagation(); setProfileOpen(!profileOpen) }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl text-sm font-medium transition-all duration-200"
                 >
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                  <span className="hidden sm:inline">{shortAddr}</span>
-                  <span className="sm:hidden">Wallet</span>
+                  {user?.profileImage ? (
+                    <img src={user.profileImage} alt="" className="w-6 h-6 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  )}
+                  <span className="hidden sm:inline">{displayLabel}</span>
+                  <span className="sm:hidden"><User size={16} /></span>
+                  <ChevronDown size={14} className={`transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
                 </button>
+
+                {/* Profile dropdown */}
+                {profileOpen && (
+                  <div
+                    className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-slide-down"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-4 border-b border-gray-100">
+                      {displayName && displayName !== shortAddr && (
+                        <p className="font-semibold text-gray-900 text-sm truncate">{displayName}</p>
+                      )}
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">{shortAddr}</p>
+                    </div>
+                    <div className="p-3 border-b border-gray-100">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-400">Balance</span>
+                        <span className="font-semibold text-gray-900">{balance} OG</span>
+                      </div>
+                    </div>
+                    <div className="p-2">
+                      <button
+                        onClick={() => { setProfileOpen(false); disconnect() }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                      >
+                        <LogOut size={14} />
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <button
@@ -97,8 +149,8 @@ export default function Navbar() {
                 disabled={connecting}
                 className="btn-primary text-sm py-2 px-5"
               >
-                <Wallet size={16} />
-                {connecting ? 'Connecting...' : 'Connect Wallet'}
+                <LogIn size={16} />
+                {connecting ? 'Loading...' : 'Sign In'}
               </button>
             )}
 

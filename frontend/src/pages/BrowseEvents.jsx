@@ -12,15 +12,15 @@ const CATEGORIES = ['All', 'Music', 'Tech', 'Sports', 'Arts', 'Gaming', 'Food', 
 
 export default function BrowseEvents() {
   const { events, loading, fetched, fetchEvents } = useEvents()
-  const { address, contract } = useWallet()
+  const { address, readContract } = useWallet()
   const [query, setQuery]     = useState('')
   const [category, setCategory] = useState('All')
 
   useEffect(() => {
-  if (contract) {
-    fetchEvents()
-  }
-}, [contract])
+    if (readContract) {
+      fetchEvents()
+    }
+  }, [readContract])
 
   const filtered = events.filter(e => {
     const matchQ = query === '' || e.name.toLowerCase().includes(query.toLowerCase())

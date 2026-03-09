@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Calendar, Users, Star, ArrowLeft, Ticket, Shield, Clock, CheckCircle, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -12,7 +12,7 @@ import Skeleton from '../components/ui/Skeleton'
 export default function EventDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { contract, address, isCorrectChain, switchToOG } = useWallet()
+  const { contract, readContract, address, isCorrectChain, switchToOG } = useWallet()
 
   const [event, setEvent]       = useState(null)
   const [loading, setLoading]   = useState(true)
@@ -20,10 +20,10 @@ export default function EventDetail() {
   const [userTicket, setUserTicket] = useState(null)
 
   const fetchEvent = useCallback(async () => {
-  if (!contract) { setLoading(false); return }
+  if (!readContract) { setLoading(false); return }
 
   try {
-    const evt = await contract.events(id)
+    const evt = await readContract.events(id)
 
     if (!evt.id || Number(evt.id) === 0) {
       setLoading(false)
@@ -46,10 +46,10 @@ export default function EventDetail() {
     })
 
     if (address) {
-      const tId = await contract.userEventTicket(address, id)
+      const tId = await readContract.userEventTicket(address, id)
 
       if (tId && Number(tId) !== 0) {
-        const tkt = await contract.tickets(tId)
+        const tkt = await readContract.tickets(tId)
 
         setUserTicket({
           tokenId: Number(tId),
@@ -63,7 +63,7 @@ export default function EventDetail() {
   } finally {
     setLoading(false)
   }
-}, [contract, id, address])
+}, [readContract, id, address])
 
   useEffect(() => { fetchEvent() }, [fetchEvent])
 
@@ -96,6 +96,17 @@ export default function EventDetail() {
   const ratingDisp = event.ratingAvg > 0 ? (event.ratingAvg / 20).toFixed(1) : null
   const tierNames  = ['Bronze', 'Silver', 'Gold', 'Platinum']
 
+  const eventImage = useMemo(() => {
+    try {
+      const meta = localStorage.getItem(`event_meta_${event.id}`)
+      if (meta) {
+        const parsed = JSON.parse(meta)
+        return parsed.image || null
+      }
+    } catch {}
+    return null
+  }, [event.id])
+
   return (
     <div className="min-h-screen pt-20 pb-20">
       <div className="max-w-3xl mx-auto px-4 sm:px-6">
@@ -107,7 +118,12 @@ export default function EventDetail() {
 
         {/* Hero image */}
         <div className="h-64 rounded-3xl bg-gradient-to-br from-brand-400 to-accent-purple mb-8 relative overflow-hidden">
-          <div className="absolute inset-0 bg-noise opacity-30" />
+          {eventImage ? (
+            <img src={eventImage} alt={event.name} className="absolute inset-0 w-full h-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 bg-noise opacity-30" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           <div className="absolute inset-0 flex items-end p-6">
             {hasTicket && (
               <span className="badge bg-emerald-500 text-white">

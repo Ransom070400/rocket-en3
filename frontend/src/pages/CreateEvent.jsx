@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Calendar, Users, Coins, FileText, Clock, Rocket } from 'lucide-react'
+import { Plus, Calendar, Users, Coins, FileText, Clock, Rocket, ImagePlus, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { ethers } from 'ethers'
 import { useWallet } from '../context/WalletContext'
@@ -13,6 +13,7 @@ export default function CreateEvent() {
   const { contract, address, isCorrectChain, switchToOG } = useWallet()
   const { fetchEvents } = useEvents()
   const navigate = useNavigate()
+  const fileInputRef = useRef(null)
 
   const [form, setForm]     = useState({
     name:       '',
@@ -26,9 +27,36 @@ export default function CreateEvent() {
     maxTickets: '100',
     metadataCid: DEFAULT_META_CID,
   })
+  const [imagePreview, setImagePreview] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB')
+      return
+    }
+
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setImagePreview(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const removeImage = () => {
+    setImagePreview(null)
+    setImageFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -48,7 +76,7 @@ export default function CreateEvent() {
     if (endTs <= startTs) return toast.error('End time must be after start')
 
     const maxTix = parseInt(form.maxTickets)
-    if (isNaN(maxTix) || maxTix <= 0 || maxTix > 10000) return toast.error('Max tickets: 1–10,000')
+    if (isNaN(maxTix) || maxTix <= 0 || maxTix > 10000) return toast.error('Max tickets: 1-10,000')
 
     const priceBn = ethers.parseEther(form.ticketPrice || '0')
 
@@ -72,7 +100,19 @@ export default function CreateEvent() {
         ? parseInt(receipt.logs[0].topics[1], 16)
         : null
 
-      toast.success('Event created! 🚀', { id: toastId })
+      // Save image and metadata to localStorage
+      if (eventId) {
+        const metadata = {
+          description: form.description,
+          category: form.category,
+        }
+        if (imagePreview) {
+          metadata.image = imagePreview
+        }
+        localStorage.setItem(`event_meta_${eventId}`, JSON.stringify(metadata))
+      }
+
+      toast.success('Event created!', { id: toastId })
       await fetchEvents()
       navigate(eventId ? `/events/${eventId}` : '/events')
     } catch (err) {
@@ -105,6 +145,60 @@ export default function CreateEvent() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Event Image */}
+          <div className="card p-6 space-y-4">
+            <h2 className="font-bold text-gray-900 flex items-center gap-2">
+              <ImagePlus size={16} className="text-brand-500" />
+              Event Image
+            </h2>
+
+            {imagePreview ? (
+              <div className="relative group">
+                <img
+                  src={imagePreview}
+                  alt="Event preview"
+                  className="w-full h-56 object-cover rounded-2xl"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute top-3 right-3 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-xl flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  <X size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute bottom-3 right-3 px-3 py-1.5 bg-black/50 hover:bg-black/70 text-white text-xs rounded-xl transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  Change image
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-56 border-2 border-dashed border-gray-200 hover:border-brand-300 rounded-2xl flex flex-col items-center justify-center gap-3 transition-colors group cursor-pointer"
+              >
+                <div className="w-14 h-14 bg-gray-50 group-hover:bg-brand-50 rounded-2xl flex items-center justify-center transition-colors">
+                  <ImagePlus size={24} className="text-gray-300 group-hover:text-brand-400 transition-colors" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-600">Click to upload event image</p>
+                  <p className="text-xs text-gray-400 mt-1">PNG, JPG or WebP. Max 5MB.</p>
+                </div>
+              </button>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+          </div>
+
           {/* Event basics */}
           <div className="card p-6 space-y-4">
             <h2 className="font-bold text-gray-900 flex items-center gap-2">

@@ -5,25 +5,21 @@ import { useWallet } from '../context/WalletContext'
 import ConnectPrompt from '../components/ui/ConnectPrompt'
 
 export default function OrganizerDashboard() {
-  const { contract, address } = useWallet()
+  const { readContract, address } = useWallet()
   const [events, setEvents]   = useState([])
   const [repScore, setRepScore] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const fetchData = useCallback(async () => {
-    if (!contract || !address) { setLoading(false); return }
+    if (!readContract || !address) { setLoading(false); return }
     setLoading(true)
     try {
-      const score = await contract.getOrganizerScore(address)
-      setRepScore(Number(score))
-
-      const allIds = await contract.getAllEventIds()
+      const total = await readContract.totalEvents()
       const myEvents = []
 
-      for (const id of allIds) {
-        const evt = await contract.getEvent(id)
+      for (let id = 1; id <= Number(total); id++) {
+        const evt = await readContract.events(id)
         if (evt.organizer.toLowerCase() === address.toLowerCase()) {
-          const [ratingAvg, ratingCount] = await contract.getEventRating(id)
           myEvents.push({
             id:          Number(evt.id),
             name:        evt.name,
@@ -32,8 +28,8 @@ export default function OrganizerDashboard() {
             soldTickets: Number(evt.soldTickets),
             maxTickets:  Number(evt.maxTickets),
             active:      evt.active,
-            ratingAvg:   Number(ratingAvg),
-            ratingCount: Number(ratingCount),
+            ratingAvg:   0,
+            ratingCount: 0,
           })
         }
       }
@@ -44,7 +40,7 @@ export default function OrganizerDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [contract, address])
+  }, [readContract, address])
 
   useEffect(() => { fetchData() }, [fetchData])
 

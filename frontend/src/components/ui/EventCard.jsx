@@ -1,9 +1,8 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Calendar, Users, Star, ArrowRight, Clock } from 'lucide-react'
 import { ethers } from 'ethers'
 
-const TIER_COLORS = ['from-amber-400 to-orange-500', 'from-gray-300 to-gray-500', 'from-yellow-300 to-yellow-500', 'from-violet-400 to-violet-600']
 const GRADIENT_SEEDS = [
   'from-blue-400 to-purple-600',
   'from-pink-400 to-rose-600',
@@ -20,17 +19,36 @@ export default function EventCard({ event }) {
   const soldPct   = event.maxTickets > 0 ? (event.soldTickets / event.maxTickets) * 100 : 0
   const isAlmostSoldOut = soldPct >= 80
   const isEnded   = Date.now() / 1000 > event.endTime
-  const ratingDisplay = event.ratingAvg > 0 ? (event.ratingAvg / 20).toFixed(1) : null
+
+  const eventImage = useMemo(() => {
+    try {
+      const meta = localStorage.getItem(`event_meta_${event.id}`)
+      if (meta) {
+        const parsed = JSON.parse(meta)
+        return parsed.image || null
+      }
+    } catch {}
+    return null
+  }, [event.id])
 
   return (
     <Link to={`/events/${event.id}`} className="block group">
       <div className="card overflow-hidden hover:-translate-y-1 transition-all duration-300">
         {/* Cover */}
-        <div className={`relative h-44 bg-gradient-to-br ${gradientClass} flex items-end p-4`}>
+        <div className={`relative h-44 ${eventImage ? '' : `bg-gradient-to-br ${gradientClass}`} flex items-end p-4 overflow-hidden`}>
+          {eventImage && (
+            <img
+              src={eventImage}
+              alt={event.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          {eventImage && <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />}
+
           {/* Status badges */}
           <div className="absolute top-3 right-3 flex gap-2">
             {isAlmostSoldOut && (
-              <span className="badge bg-rose-500 text-white text-xs">🔥 Almost gone</span>
+              <span className="badge bg-rose-500 text-white text-xs">Almost gone</span>
             )}
             {isEnded && (
               <span className="badge bg-black/50 text-white/80 text-xs">Ended</span>
@@ -38,7 +56,7 @@ export default function EventCard({ event }) {
           </div>
 
           {/* Date pill */}
-          <div className="bg-white/20 backdrop-blur-sm border border-white/30 text-white rounded-2xl px-3 py-1.5 text-xs font-semibold">
+          <div className="relative bg-white/20 backdrop-blur-sm border border-white/30 text-white rounded-2xl px-3 py-1.5 text-xs font-semibold">
             {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </div>
         </div>
@@ -59,7 +77,7 @@ export default function EventCard({ event }) {
               <Users size={12} />
               {event.soldTickets}/{event.maxTickets}
             </span>
-            
+
             <span className="flex items-center gap-1">
               <Clock size={12} />
               {startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}

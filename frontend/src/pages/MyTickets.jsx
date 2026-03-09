@@ -10,7 +10,7 @@ import TierBadge from '../components/ui/TierBadge'
 import RateEventModal from '../components/ui/RateEventModal'
 
 export default function MyTickets() {
-  const { contract, address, signer } = useWallet()
+  const { contract, readContract, address, signer } = useWallet()
   const navigate = useNavigate()
 
   const [tickets, setTickets]   = useState([])
@@ -20,19 +20,19 @@ export default function MyTickets() {
   const [userLoyalty, setUserLoyalty] = useState(0)
 
   const fetchTickets = useCallback(async () => {
-  if (!contract || !address) { setLoading(false); return }
+  if (!readContract || !address) { setLoading(false); return }
   setLoading(true)
 
   try {
-    const loyalty = await contract.userLoyalty(address)
+    const loyalty = await readContract.userLoyalty(address)
     setUserLoyalty(Number(loyalty))
 
     // Get only the event IDs the user has tickets for
-    const userEventIds = await contract.getUserEventIds(address)
+    const userEventIds = await readContract.getUserEventIds(address)
     const found = []
 
     for (let eventId of userEventIds) {
-      const tokenId = await contract.userEventTicket(address, eventId)
+      const tokenId = await readContract.userEventTicket(address, eventId)
 
       console.log("Event ID:", eventId.toString(), "Token ID:", tokenId.toString())
 
@@ -40,8 +40,8 @@ export default function MyTickets() {
       const tokenIdStr = tokenId.toString()
       if (tokenIdStr === "0") continue // skip empty tickets
 
-      const tkt = await contract.tickets(tokenId)
-      const evt = await contract.events(eventId)
+      const tkt = await readContract.tickets(tokenId)
+      const evt = await readContract.events(eventId)
 
       found.push({
         tokenId:   Number(tokenId),
@@ -65,7 +65,7 @@ export default function MyTickets() {
   } finally {
     setLoading(false)
   }
-}, [contract, address])
+}, [readContract, address])
 
   useEffect(() => { fetchTickets() }, [fetchTickets])
 

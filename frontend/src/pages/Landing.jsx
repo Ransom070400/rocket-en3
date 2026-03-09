@@ -109,10 +109,10 @@ export default function Landing() {
                 className="group flex items-center justify-center gap-2 px-8 py-4 bg-white text-gray-900 font-bold rounded-2xl hover:bg-gray-50 transition-all duration-200 shadow-glow text-lg disabled:opacity-60"
               >
                 {connecting ? (
-                  <>Connecting...</>
+                  <>Loading...</>
                 ) : (
                   <>
-                    Connect & Launch
+                    Sign In & Launch
                     <Rocket size={20} className="group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}

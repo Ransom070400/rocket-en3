@@ -1,122 +1,135 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import { ethers } from 'ethers'
 import toast from 'react-hot-toast'
+import { useWeb3Auth, useWeb3AuthConnect, useWeb3AuthDisconnect, useWeb3AuthUser } from '@web3auth/modal/react'
 import { CONTRACT_ADDRESS, CONTRACT_ABI, OG_CHAIN } from '../utils/contract'
 
 const WalletContext = createContext(null)
 
 export function WalletProvider({ children }) {
+  const { isConnected, isInitialized, provider: web3AuthProvider } = useWeb3Auth()
+  const { connect: web3AuthConnect, loading: connectLoading } = useWeb3AuthConnect()
+  const { disconnect: web3AuthDisconnect } = useWeb3AuthDisconnect()
+  const { userInfo } = useWeb3AuthUser()
+
   const [provider, setProvider]     = useState(null)
   const [signer, setSigner]         = useState(null)
   const [address, setAddress]       = useState(null)
-  const [contract, setContract]     = useState(null)
+  const [writeContract, setWriteContract] = useState(null)
   const [chainId, setChainId]       = useState(null)
-  const [connecting, setConnecting] = useState(false)
   const [balance, setBalance]       = useState('0')
 
   const isCorrectChain = chainId === OG_CHAIN.id
 
-  const initContract = useCallback((signerOrProvider) => {
+  // Read-only provider & contract (always works, no wallet needed)
+  const readProvider = useMemo(() => new ethers.JsonRpcProvider(OG_CHAIN.rpcUrl), [])
+  const readContract = useMemo(() => {
     if (!CONTRACT_ADDRESS || !CONTRACT_ADDRESS.startsWith('0x')) return null
-    try {
-      return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signerOrProvider)
-    } catch {
-      return null
-    }
+    try { return new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, readProvider) }
+    catch { return null }
+  }, [readProvider])
+
+  const contract = writeContract || readContract
+
+  const clearState = useCallback(() => {
+    setProvider(null)
+    setSigner(null)
+    setAddress(null)
+    setWriteContract(null)
+    setChainId(null)
+    setBalance('0')
   }, [])
 
-  const connect = useCallback(async () => {
-    if (!window.ethereum) {
-      toast.error('MetaMask not found. Please install it.')
-      return
-    }
-    setConnecting(true)
-    try {
-      const prov = new ethers.BrowserProvider(window.ethereum)
-      await prov.send('eth_requestAccounts', [])
+  // Setup ethers provider/signer when Web3Auth connects
+  const setupWallet = useCallback(async () => {
+    if (!web3AuthProvider) { clearState(); return }
 
-      const sgn  = await prov.getSigner()
+    try {
+      const prov = new ethers.BrowserProvider(web3AuthProvider)
+      const sgn = await prov.getSigner()
       const addr = await sgn.getAddress()
-      const net  = await prov.getNetwork()
-      const bal  = await prov.getBalance(addr)
+      const net = await prov.getNetwork()
+
+      let bal = '0'
+      try {
+        const rawBal = await readProvider.getBalance(addr)
+        bal = ethers.formatEther(rawBal).slice(0, 6)
+      } catch {}
 
       setProvider(prov)
       setSigner(sgn)
       setAddress(addr)
       setChainId(Number(net.chainId))
-      setBalance(ethers.formatEther(bal).slice(0, 6))
-      setContract(initContract(sgn))
+      setBalance(bal)
 
-      toast.success('Wallet connected 🚀')
+      if (CONTRACT_ADDRESS?.startsWith('0x')) {
+        try { setWriteContract(new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, sgn)) }
+        catch { setWriteContract(null) }
+      }
     } catch (err) {
-      toast.error(err.message?.slice(0, 60) || 'Connection failed')
-    } finally {
-      setConnecting(false)
+      console.error('Wallet setup error:', err)
     }
-  }, [initContract])
+  }, [web3AuthProvider, readProvider, clearState])
+
+  // React to connection state changes
+  useEffect(() => {
+    if (isConnected && web3AuthProvider) {
+      setupWallet()
+    } else if (!isConnected) {
+      clearState()
+    }
+  }, [isConnected, web3AuthProvider, setupWallet, clearState])
+
+  const [manualConnecting, setManualConnecting] = useState(false)
+
+  const connect = useCallback(async () => {
+    if (!isInitialized) {
+      toast.error('Still loading, please wait...')
+      return
+    }
+    setManualConnecting(true)
+    try {
+      await web3AuthConnect()
+    } catch (err) {
+      if (err?.message?.includes('User closed')) return
+      toast.error(err?.message?.slice(0, 60) || 'Login failed')
+    } finally {
+      setManualConnecting(false)
+    }
+  }, [web3AuthConnect, isInitialized])
+
+  const disconnect = useCallback(async () => {
+    try {
+      await web3AuthDisconnect()
+    } catch {}
+    clearState()
+    toast('Disconnected')
+  }, [web3AuthDisconnect, clearState])
 
   const switchToOG = useCallback(async () => {
-    if (!window.ethereum) return
+    if (!web3AuthProvider) return
     try {
-      await window.ethereum.request({
+      await web3AuthProvider.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${OG_CHAIN.id.toString(16)}` }],
+        params: [{ chainId: '0x40DA' }],
       })
+      await setupWallet()
     } catch (err) {
-      if (err.code === 4902) {
-        await window.ethereum.request({
-          method: 'wallet_addEthereumChain',
-          params: [{
-            chainId: `0x${OG_CHAIN.id.toString(16)}`,
-            chainName: OG_CHAIN.name,
-            rpcUrls: [OG_CHAIN.rpcUrl],
-            blockExplorerUrls: [OG_CHAIN.explorer],
-            nativeCurrency: OG_CHAIN.nativeCurrency,
-          }],
-        })
-      }
+      console.error('Chain switch error:', err)
     }
-  }, [])
+  }, [web3AuthProvider, setupWallet])
 
-  const disconnect = useCallback(() => {
-    setProvider(null)
-    setSigner(null)
-    setAddress(null)
-    setContract(null)
-    setChainId(null)
-    setBalance('0')
-    toast('Disconnected', { icon: '👋' })
-  }, [])
-
-  // Auto-connect if previously connected
-  useEffect(() => {
-    if (!window.ethereum) return
-    window.ethereum.request({ method: 'eth_accounts' }).then(accounts => {
-      if (accounts.length > 0) connect()
-    }).catch(() => {})
-  }, [])
-
-  // Listen for account/chain changes
-  useEffect(() => {
-    if (!window.ethereum) return
-    const onAccounts = (accounts) => {
-      if (accounts.length === 0) disconnect()
-      else connect()
-    }
-    const onChain = (cId) => setChainId(parseInt(cId, 16))
-    window.ethereum.on('accountsChanged', onAccounts)
-    window.ethereum.on('chainChanged', onChain)
-    return () => {
-      window.ethereum.removeListener('accountsChanged', onAccounts)
-      window.ethereum.removeListener('chainChanged', onChain)
-    }
-  }, [connect, disconnect])
+  // User display info from social login
+  const user = userInfo || null
+  const authenticated = isConnected
 
   return (
     <WalletContext.Provider value={{
-      provider, signer, address, contract, chainId,
-      connecting, balance, isCorrectChain,
+      provider, signer, address, contract, readContract, chainId,
+      connecting: manualConnecting || connectLoading,
+      balance, isCorrectChain,
       connect, disconnect, switchToOG,
+      authenticated, user,
     }}>
       {children}
     </WalletContext.Provider>

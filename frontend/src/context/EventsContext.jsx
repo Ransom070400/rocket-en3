@@ -4,13 +4,13 @@ import { useWallet } from './WalletContext'
 const EventsContext = createContext(null)
 
 export function EventsProvider({ children }) {
-  const { contract } = useWallet()
+  const { readContract } = useWallet()
   const [events, setEvents]     = useState([])
   const [loading, setLoading]   = useState(false)
   const [fetched, setFetched]   = useState(false)
 
   const fetchEvents = useCallback(async () => {
-    if (!contract) {
+    if (!readContract) {
       setEvents([])
       setFetched(true)
       return
@@ -18,12 +18,12 @@ export function EventsProvider({ children }) {
 
     setLoading(true)
     try {
-      const total = await contract.totalEvents()
+      const total = await readContract.totalEvents()
       const list = []
 
       for (let id = 1; id <= total; id++) {
         try {
-          const evt = await contract.events(id)
+          const evt = await readContract.events(id)
 
           // Build the event object
           list.push({
@@ -56,7 +56,7 @@ export function EventsProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [contract])
+  }, [readContract])
 
   return (
     <EventsContext.Provider value={{ events, loading, fetched, fetchEvents, setEvents }}>
